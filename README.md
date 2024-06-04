@@ -14,9 +14,10 @@ Windows example. For other OS, please refer to the official [Kubeflow documentat
 
 If you do not already have it, you can get kustomize with docker and the following command:
 
-`docker pull registry.k8s.io/kustomize/kustomize:v5.0.0`
-
-`docker run registry.k8s.io/kustomize/kustomize:v5.0.0 version`
+```bash
+docker pull registry.k8s.io/kustomize/kustomize:v5.0.0
+docker run registry.k8s.io/kustomize/kustomize:v5.0.0 version
+```
 
 ### Install Kubeflow Pipelines
 
@@ -33,7 +34,10 @@ kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform
 
 To access the Kubeflow Pipelines UI, run the following command:
 
-`kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80`
+```bash
+kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80`
+```
+
 
 Then, open a web browser and go to `http://localhost:8080/`.
 
