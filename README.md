@@ -35,11 +35,11 @@ kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform
 To access the Kubeflow Pipelines UI, run the following command:
 
 ```bash
-kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80`
+kubectl port-forward -n kubeflow svc/ml-pipeline-ui 9000:80
 ```
 
 
-Then, open a web browser and go to `http://localhost:8080/`.
+Then, open a web browser and go to `http://localhost:9000/`.
 
 ### Uninstall Kubeflow Pipelines
 

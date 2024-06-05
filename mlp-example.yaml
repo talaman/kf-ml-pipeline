@@ -1,0 +1,142 @@
+# PIPELINE DEFINITION
+# Name: mlp-example-pipeline
+# Inputs:
+#    message: str [Default: 'message']
+components:
+  comp-data-validation:
+    executorLabel: exec-data-validation
+    inputDefinitions:
+      artifacts:
+        dataset:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        data_drift_report:
+          artifactType:
+            schemaTitle: system.HTML
+            schemaVersion: 0.0.1
+        data_stability_report:
+          artifactType:
+            schemaTitle: system.HTML
+            schemaVersion: 0.0.1
+  comp-exctract-data:
+    executorLabel: exec-exctract-data
+    outputDefinitions:
+      artifacts:
+        dataset:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-data-validation:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - data_validation
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.2.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'evidently'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef data_validation(\n    # An input parameter of type `Dataset`.\n\
+          \    dataset: Input[Dataset],\n    # An output parameter of type `Model`.\n\
+          \    data_stability_report: Output[HTML],\n    data_drift_report: Output[HTML],\n\
+          ):\n    from evidently.test_suite import TestSuite\n    from evidently.test_preset\
+          \ import DataStabilityTestPreset\n    from evidently.report import Report\n\
+          \    from evidently.metric_preset import DataDriftPreset\n    import pandas\
+          \ as pd\n\n    with open(dataset.path, 'r') as input_file:\n        data\
+          \ = pd.read_csv(input_file)\n\n    data_stability= TestSuite(tests=[\n \
+          \       DataStabilityTestPreset(),\n    ])\n    data_stability.run(current_data=data.iloc[:60],\
+          \ reference_data=data.iloc[60:], column_mapping=None)\n    data_stability.save_html(data_stability_report.path)\n\
+          \    print('data_stability',data_stability) \n\n\n    data_drift = Report(metrics=[\n\
+          \    DataDriftPreset(),\n    ])\n\n    data_drift.run(current_data=data.iloc[:60],\
+          \ reference_data=data.iloc[60:], column_mapping=None)\n    data_stability.save_html(data_drift_report.path)\n\
+          \n    print(\"data_drift_report\",data_drift)\n\n"
+        image: python:3.9
+    exec-exctract-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - exctract_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.2.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'scikit-learn'\
+          \ 'pandas' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef exctract_data(\n    # An output parameter of type `Dataset`.\n\
+          \    dataset: Output[Dataset],\n):\n    from sklearn import datasets\n \
+          \   data = datasets.load_iris(as_frame=True)\n    data = data.frame\n  \
+          \  with open(dataset.path, 'w') as f:\n        f.write(data.to_csv())\n\n"
+        image: python:3.7
+pipelineInfo:
+  name: mlp-example-pipeline
+root:
+  dag:
+    tasks:
+      data-validation:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-data-validation
+        dependentTasks:
+        - exctract-data
+        inputs:
+          artifacts:
+            dataset:
+              taskOutputArtifact:
+                outputArtifactKey: dataset
+                producerTask: exctract-data
+        taskInfo:
+          name: data-validation
+      exctract-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-exctract-data
+        taskInfo:
+          name: exctract-data
+  inputDefinitions:
+    parameters:
+      message:
+        defaultValue: message
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.2.0
