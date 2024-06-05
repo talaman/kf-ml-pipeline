@@ -41,6 +41,32 @@ kubectl port-forward -n kubeflow svc/ml-pipeline-ui 9000:80
 
 Then, open a web browser and go to `http://localhost:9000/`.
 
+
+
+
+## Run the pipeline
+
+    
+```python
+python mlp-example\pipeline.py
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### Uninstall Kubeflow Pipelines
 
 To uninstall Kubeflow Pipelines, run the following commands:
@@ -49,3 +75,5 @@ To uninstall Kubeflow Pipelines, run the following commands:
 set PIPELINE_VERSION=2.2.0
 kubectl delete -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=%PIPELINE_VERSION%"
 kubectl delete -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=%PIPELINE_VERSION%"
+
+
