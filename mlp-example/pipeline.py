@@ -9,7 +9,6 @@ import kfp
 
 @component(packages_to_install=['scikit-learn','pandas'])
 def exctract_data(
-    # An output parameter of type `Dataset`.
     dataset: Output[Dataset],
 ):
     from sklearn import datasets
@@ -20,37 +19,36 @@ def exctract_data(
 
 @component(packages_to_install=['evidently'],base_image='python:3.9')
 def data_validation(
-    # An input parameter of type `Dataset`.
     dataset: Input[Dataset],
-    # An output parameter of type `Model`.
-    data_stability_report: Output[HTML],
-    data_drift_report: Output[HTML],
+    tests: Output[HTML],
+    reports: Output[HTML],
 ):
+    from evidently import ColumnMapping
     from evidently.test_suite import TestSuite
+    from evidently.test_preset import DataQualityTestPreset
     from evidently.test_preset import DataStabilityTestPreset
     from evidently.report import Report
-    from evidently.metric_preset import DataDriftPreset
+    from evidently.metric_preset import DataQualityPreset
     import pandas as pd
     
     with open(dataset.path, 'r') as input_file:
         data = pd.read_csv(input_file)
 
-    data_stability= TestSuite(tests=[
+    tests_suite= TestSuite(tests=[
         DataStabilityTestPreset(),
+        DataQualityTestPreset()
     ])
-    data_stability.run(current_data=data.iloc[:60], reference_data=data.iloc[60:], column_mapping=None)
-    data_stability.save_html(data_stability_report.path)
-    print('data_stability',data_stability) 
+    tests_suite.run(current_data=data.iloc[:60], reference_data=data.iloc[60:], column_mapping=None)
+    tests_suite.save_html(tests.path)
 
 
-    data_drift = Report(metrics=[
-    DataDriftPreset(),
+    reports_suite = Report(metrics=[
+        DataQualityPreset(),
     ])
 
-    data_drift.run(current_data=data.iloc[:60], reference_data=data.iloc[60:], column_mapping=None)
-    data_stability.save_html(data_drift_report.path)
+    reports_suite.run(current_data=data.iloc[:60], reference_data=data.iloc[60:], column_mapping=None)
+    reports_suite.save_html(reports.path)
 
-    print("data_drift_report",data_drift)
 
 @dsl.pipeline(pipeline_root='', name='mlp-example-pipeline')
 def data_passing_pipeline(message: str = 'message'):

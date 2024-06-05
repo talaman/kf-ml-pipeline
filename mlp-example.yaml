@@ -13,11 +13,11 @@ components:
             schemaVersion: 0.0.1
     outputDefinitions:
       artifacts:
-        data_drift_report:
+        reports:
           artifactType:
             schemaTitle: system.HTML
             schemaVersion: 0.0.1
-        data_stability_report:
+        tests:
           artifactType:
             schemaTitle: system.HTML
             schemaVersion: 0.0.1
@@ -58,20 +58,19 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef data_validation(\n    # An input parameter of type `Dataset`.\n\
-          \    dataset: Input[Dataset],\n    # An output parameter of type `Model`.\n\
-          \    data_stability_report: Output[HTML],\n    data_drift_report: Output[HTML],\n\
-          ):\n    from evidently.test_suite import TestSuite\n    from evidently.test_preset\
-          \ import DataStabilityTestPreset\n    from evidently.report import Report\n\
-          \    from evidently.metric_preset import DataDriftPreset\n    import pandas\
-          \ as pd\n\n    with open(dataset.path, 'r') as input_file:\n        data\
-          \ = pd.read_csv(input_file)\n\n    data_stability= TestSuite(tests=[\n \
-          \       DataStabilityTestPreset(),\n    ])\n    data_stability.run(current_data=data.iloc[:60],\
-          \ reference_data=data.iloc[60:], column_mapping=None)\n    data_stability.save_html(data_stability_report.path)\n\
-          \    print('data_stability',data_stability) \n\n\n    data_drift = Report(metrics=[\n\
-          \    DataDriftPreset(),\n    ])\n\n    data_drift.run(current_data=data.iloc[:60],\
-          \ reference_data=data.iloc[60:], column_mapping=None)\n    data_stability.save_html(data_drift_report.path)\n\
-          \n    print(\"data_drift_report\",data_drift)\n\n"
+          \ *\n\ndef data_validation(\n    dataset: Input[Dataset],\n    tests: Output[HTML],\n\
+          \    reports: Output[HTML],\n):\n    from evidently import ColumnMapping\n\
+          \    from evidently.test_suite import TestSuite\n    from evidently.test_preset\
+          \ import DataQualityTestPreset\n    from evidently.test_preset import DataStabilityTestPreset\n\
+          \    from evidently.report import Report\n    from evidently.metric_preset\
+          \ import DataQualityPreset\n    import pandas as pd\n\n    with open(dataset.path,\
+          \ 'r') as input_file:\n        data = pd.read_csv(input_file)\n\n    tests_suite=\
+          \ TestSuite(tests=[\n        DataStabilityTestPreset(),\n        DataQualityTestPreset()\n\
+          \    ])\n    tests_suite.run(current_data=data.iloc[:60], reference_data=data.iloc[60:],\
+          \ column_mapping=None)\n    tests_suite.save_html(tests.path)\n\n\n    reports_suite\
+          \ = Report(metrics=[\n        DataQualityPreset(),\n    ])\n\n    reports_suite.run(current_data=data.iloc[:60],\
+          \ reference_data=data.iloc[60:], column_mapping=None)\n    reports_suite.save_html(reports.path)\n\
+          \n"
         image: python:3.9
     exec-exctract-data:
       container:
@@ -100,10 +99,10 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef exctract_data(\n    # An output parameter of type `Dataset`.\n\
-          \    dataset: Output[Dataset],\n):\n    from sklearn import datasets\n \
-          \   data = datasets.load_iris(as_frame=True)\n    data = data.frame\n  \
-          \  with open(dataset.path, 'w') as f:\n        f.write(data.to_csv())\n\n"
+          \ *\n\ndef exctract_data(\n    dataset: Output[Dataset],\n):\n    from sklearn\
+          \ import datasets\n    data = datasets.load_iris(as_frame=True)\n    data\
+          \ = data.frame\n    with open(dataset.path, 'w') as f:\n        f.write(data.to_csv())\n\
+          \n"
         image: python:3.7
 pipelineInfo:
   name: mlp-example-pipeline
