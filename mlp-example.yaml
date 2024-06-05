@@ -3,6 +3,20 @@
 # Inputs:
 #    message: str [Default: 'message']
 components:
+  comp-data-preparation:
+    executorLabel: exec-data-preparation
+    inputDefinitions:
+      artifacts:
+        dataset:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        dataset_transformed:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
   comp-data-validation:
     executorLabel: exec-data-validation
     inputDefinitions:
@@ -31,6 +45,49 @@ components:
             schemaVersion: 0.0.1
 deploymentSpec:
   executors:
+    exec-data-preparation:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - data_preparation
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.2.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'tensorflow_transform'\
+          \ 'pandas' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef data_preparation(\n    dataset: Input[Dataset],\n    dataset_transformed:\
+          \ Output[Dataset],\n):\n    import tensorflow_transform as tft\n    import\
+          \ tensorflow as tf\n    import pandas as pd\n    tf.compat.v1.disable_eager_execution()\n\
+          \n    NUMERIC_FEATURE_KEYS = ['sepal length (cm)', 'sepal width (cm)', 'petal\
+          \ length (cm)', 'petal width (cm)']\n    LABEL_KEY = 'target'\n    def preprocessing_fn(inputs):\n\
+          \        \"\"\"Preprocess input columns into transformed columns.\"\"\"\n\
+          \        outputs = inputs.copy()\n        # for key in NUMERIC_FEATURE_KEYS:\n\
+          \        #     # outputs[key] = tft.scale_to_0_1(outputs[key])\n       \
+          \ #     outputs[key] = tft.scale_to_z_score(tf.cast(outputs[key], tf.float32))\n\
+          \n\n        # outputs[LABEL_KEY] = tf.one_hot(outputs[LABEL_KEY], depth=3)\
+          \  # Assuming 3 classes                                 \n\n        return\
+          \ outputs   \n\n\n    with open(dataset.path, 'r') as input_file:\n    \
+          \    data = pd.read_csv(input_file)\n\n\n    data_transformed = preprocessing_fn(data)\n\
+          \n    with open(dataset_transformed.path, 'w') as f:\n        f.write(data_transformed.to_csv(index=False))\n\
+          \n"
+        image: python:3.9
     exec-data-validation:
       container:
         args:
@@ -59,19 +116,19 @@ deploymentSpec:
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef data_validation(\n    dataset: Input[Dataset],\n    tests: Output[HTML],\n\
-          \    reports: Output[HTML],\n):\n    from evidently import ColumnMapping\n\
-          \    from evidently.test_suite import TestSuite\n    from evidently.test_preset\
-          \ import DataQualityTestPreset\n    from evidently.test_preset import DataStabilityTestPreset\n\
-          \    from evidently.report import Report\n    from evidently.metric_preset\
-          \ import DataQualityPreset\n    import pandas as pd\n\n    with open(dataset.path,\
+          \    reports: Output[HTML],\n):\n    from evidently.test_suite import TestSuite\n\
+          \    from evidently.test_preset import DataQualityTestPreset\n    from evidently.test_preset\
+          \ import DataStabilityTestPreset\n    from evidently.report import Report\n\
+          \    from evidently.metric_preset import DataQualityPreset\n    from evidently.metric_preset\
+          \ import DataDriftPreset\n    import pandas as pd\n\n    with open(dataset.path,\
           \ 'r') as input_file:\n        data = pd.read_csv(input_file)\n\n    tests_suite=\
           \ TestSuite(tests=[\n        DataStabilityTestPreset(),\n        DataQualityTestPreset()\n\
           \    ])\n    tests_suite.run(current_data=data.iloc[:60], reference_data=data.iloc[60:],\
           \ column_mapping=None)\n    tests_suite.save_html(tests.path)\n\n\n    reports_suite\
-          \ = Report(metrics=[\n        DataQualityPreset(),\n    ])\n\n    reports_suite.run(current_data=data.iloc[:60],\
-          \ reference_data=data.iloc[60:], column_mapping=None)\n    reports_suite.save_html(reports.path)\n\
-          \n"
-        image: python:3.9
+          \ = Report(metrics=[\n        DataQualityPreset(),\n        DataDriftPreset()\n\
+          \    ])\n\n    reports_suite.run(current_data=data.iloc[:60], reference_data=data.iloc[60:],\
+          \ column_mapping=None)\n    reports_suite.save_html(reports.path)\n\n"
+        image: python:3.10
     exec-exctract-data:
       container:
         args:
@@ -100,15 +157,31 @@ deploymentSpec:
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef exctract_data(\n    dataset: Output[Dataset],\n):\n    from sklearn\
-          \ import datasets\n    data = datasets.load_iris(as_frame=True)\n    data\
-          \ = data.frame\n    with open(dataset.path, 'w') as f:\n        f.write(data.to_csv())\n\
-          \n"
+          \ import datasets\n    data = datasets.load_iris(as_frame=True).frame\n\
+          \    print(data.head())\n    with open(dataset.path, 'w') as f:\n      \
+          \  f.write(data.to_csv(index=False))\n\n"
         image: python:3.7
 pipelineInfo:
   name: mlp-example-pipeline
 root:
   dag:
     tasks:
+      data-preparation:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-data-preparation
+        dependentTasks:
+        - data-validation
+        - exctract-data
+        inputs:
+          artifacts:
+            dataset:
+              taskOutputArtifact:
+                outputArtifactKey: dataset
+                producerTask: exctract-data
+        taskInfo:
+          name: data-preparation
       data-validation:
         cachingOptions:
           enableCache: true
