@@ -158,8 +158,8 @@ deploymentSpec:
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef exctract_data(\n    dataset: Output[Dataset],\n):\n    from sklearn\
           \ import datasets\n    data = datasets.load_iris(as_frame=True).frame\n\
-          \    print(data.head())\n    with open(dataset.path, 'w') as f:\n      \
-          \  f.write(data.to_csv(index=False))\n\n"
+          \    with open(dataset.path, 'w') as f:\n        f.write(data.to_csv(index=False))\n\
+          \n"
         image: python:3.7
 pipelineInfo:
   name: mlp-example-pipeline
