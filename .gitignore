@@ -164,6 +164,4 @@ cython_debug/
 # terraform ignores
 .terraform
 *.terraform.lock.hcl
-*.tfstate
-*.tfstate.backup
-
+*.tfstate*

@@ -6,6 +6,11 @@ resource "null_resource" "kubeflow_cluster_scoped" {
   provisioner "local-exec" {
     command = "kubectl apply -k github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=${var.pipeline_version}"
   }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "kubectl delete -k github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=2.2.0"
+  }
 }
 
 resource "null_resource" "wait_for_crd" {
@@ -23,6 +28,11 @@ resource "null_resource" "wait_for_crd" {
 resource "null_resource" "kubeflow_platform_agnostic" {
   provisioner "local-exec" {
     command = "kubectl apply -k github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=${var.pipeline_version}"
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "kubectl delete -k github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=2.2.0"
   }
 
   depends_on = [null_resource.wait_for_crd]
