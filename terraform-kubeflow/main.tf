@@ -4,7 +4,7 @@ provider "kubernetes" {
 
 resource "null_resource" "kubeflow_cluster_scoped" {
   provisioner "local-exec" {
-    command = "kubectl apply -k github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=${var.pipeline_version}"
+    command = "kubectl apply -k github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=2.2.0"
   }
 
   provisioner "local-exec" {
@@ -27,7 +27,7 @@ resource "null_resource" "wait_for_crd" {
 
 resource "null_resource" "kubeflow_platform_agnostic" {
   provisioner "local-exec" {
-    command = "kubectl apply -k github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=${var.pipeline_version}"
+    command = "kubectl apply -k github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=2.2.0"
   }
 
   provisioner "local-exec" {
