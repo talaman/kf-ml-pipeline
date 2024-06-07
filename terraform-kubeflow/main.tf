@@ -60,7 +60,3 @@ resource "kubernetes_service" "ml_pipeline_ui_lb" {
   depends_on = [null_resource.kubeflow_platform_agnostic]
 }
 
-variable "pipeline_version" {
-  description = "Version of the Kubeflow Pipelines to deploy"
-  default     = "2.2.0"
-}
