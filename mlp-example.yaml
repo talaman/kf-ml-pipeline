@@ -43,6 +43,58 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
+  comp-split-data:
+    executorLabel: exec-split-data
+    inputDefinitions:
+      artifacts:
+        dataset:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        dataset_test:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        dataset_train:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        dataset_validation:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      artifacts:
+        dataset_train:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        dataset_validation:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        model_artifact:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+  comp-validate-model:
+    executorLabel: exec-validate-model
+    inputDefinitions:
+      artifacts:
+        dataset_test:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        model_artifact:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
 deploymentSpec:
   executors:
     exec-data-preparation:
@@ -59,7 +111,7 @@ deploymentSpec:
           \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
           \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.2.0'\
           \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
-          \  python3 -m pip install --quiet --no-warn-script-location 'tensorflow_transform'\
+          \  python3 -m pip install --quiet --no-warn-script-location 'scikit-learn'\
           \ 'pandas' && \"$0\" \"$@\"\n"
         - sh
         - -ec
@@ -73,18 +125,18 @@ deploymentSpec:
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef data_preparation(\n    dataset: Input[Dataset],\n    dataset_transformed:\
-          \ Output[Dataset],\n):\n    import tensorflow_transform as tft\n    import\
-          \ tensorflow as tf\n    import pandas as pd\n    tf.compat.v1.disable_eager_execution()\n\
-          \n    NUMERIC_FEATURE_KEYS = ['sepal length (cm)', 'sepal width (cm)', 'petal\
-          \ length (cm)', 'petal width (cm)']\n    LABEL_KEY = 'target'\n    def preprocessing_fn(inputs):\n\
-          \        \"\"\"Preprocess input columns into transformed columns.\"\"\"\n\
-          \        outputs = inputs.copy()\n        # for key in NUMERIC_FEATURE_KEYS:\n\
-          \        #     # outputs[key] = tft.scale_to_0_1(outputs[key])\n       \
-          \ #     outputs[key] = tft.scale_to_z_score(tf.cast(outputs[key], tf.float32))\n\
-          \n\n        # outputs[LABEL_KEY] = tf.one_hot(outputs[LABEL_KEY], depth=3)\
-          \  # Assuming 3 classes                                 \n\n        return\
-          \ outputs   \n\n\n    with open(dataset.path, 'r') as input_file:\n    \
-          \    data = pd.read_csv(input_file)\n\n\n    data_transformed = preprocessing_fn(data)\n\
+          \ Output[Dataset],\n):\n    import pandas as pd\n    from sklearn.preprocessing\
+          \ import MinMaxScaler, OneHotEncoder    \n\n    NUMERIC_FEATURE_KEYS = ['sepal\
+          \ length (cm)', 'sepal width (cm)', 'petal length (cm)', 'petal width (cm)']\n\
+          \    LABEL_KEY = 'target'\n\n    def preprocessing_fn(inputs):\n       \
+          \ \"\"\"Preprocess input columns into transformed columns.\"\"\"\n     \
+          \   outputs = inputs.copy()\n\n        # Scale numeric features to range\
+          \ [0, 1]\n        scaler = MinMaxScaler()\n        outputs[NUMERIC_FEATURE_KEYS]\
+          \ = scaler.fit_transform(outputs[NUMERIC_FEATURE_KEYS])\n\n        # One-hot\
+          \ encode the label column\n        encoder = OneHotEncoder()\n        outputs[LABEL_KEY]\
+          \ = encoder.fit_transform(outputs[LABEL_KEY].values.reshape(-1, 1)).toarray()\n\
+          \n        return outputs\n\n    with open(dataset.path, 'r') as input_file:\n\
+          \        data = pd.read_csv(input_file)\n\n    data_transformed = preprocessing_fn(data)\n\
           \n    with open(dataset_transformed.path, 'w') as f:\n        f.write(data_transformed.to_csv(index=False))\n\
           \n"
         image: python:3.9
@@ -161,6 +213,132 @@ deploymentSpec:
           \    with open(dataset.path, 'w') as f:\n        f.write(data.to_csv(index=False))\n\
           \n"
         image: python:3.7
+    exec-split-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - split_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.2.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas' 'scikit-learn'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef split_data(dataset: Input[Dataset], dataset_train: Output[Dataset],\
+          \ dataset_validation: Output[Dataset], dataset_test: Output[Dataset]):\n\
+          \    import pandas as pd\n    from sklearn.model_selection import train_test_split\n\
+          \    with open(dataset.path, 'r') as input_file:\n        data = pd.read_csv(input_file)\n\
+          \n    train, test = train_test_split(data, test_size=0.2)\n    train, validation\
+          \ = train_test_split(train, test_size=0.2)\n\n    with open(dataset_train.path,\
+          \ 'w') as f:\n        f.write(train.to_csv(index=False))\n    with open(dataset_validation.path,\
+          \ 'w') as f:\n        f.write(validation.to_csv(index=False))\n    with\
+          \ open(dataset_test.path, 'w') as f:\n        f.write(test.to_csv(index=False))\n\
+          \n"
+        image: python:3.9
+    exec-train-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.2.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'tensorflow'\
+          \ 'pandas' 'joblib' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model(\n    dataset_train: Input[Dataset],\n    dataset_validation:\
+          \ Input[Dataset],\n    model_artifact: Output[Model],\n):\n    import pandas\
+          \ as pd\n    import tensorflow as tf\n    from tensorflow import keras\n\
+          \    from tensorflow.keras import layers\n    def create_model():\n    \
+          \    tf_model = keras.Sequential([\n            layers.Dense(64, activation='relu',\
+          \ input_shape=(4,)),\n            layers.Dense(64, activation='relu'),\n\
+          \            layers.Dense(3, activation='softmax')\n        ])\n       \
+          \ return tf_model\n\n\n    with open(dataset_train.path, 'r') as train_file:\n\
+          \        train_data = pd.read_csv(train_file)\n    with open(dataset_validation.path,\
+          \ 'r') as validation_file:\n        validation_data = pd.read_csv(validation_file)\n\
+          \n    # Preprocess the data\n    train_features = train_data.drop('target',\
+          \ axis=1)\n    train_labels = train_data['target']\n    validation_features\
+          \ = validation_data.drop('target', axis=1)\n    validation_labels = validation_data['target']\n\
+          \n    # Create the model\n    tf_model = create_model()\n\n    # Compile\
+          \ the model\n    tf_model.compile(optimizer='adam',\n                  \
+          \  loss='sparse_categorical_crossentropy',\n                    metrics=['accuracy'])\n\
+          \n    # Train the model\n    tf_model.fit(train_features, train_labels,\
+          \ epochs=10, validation_data=(validation_features, validation_labels))\n\
+          \n    # Evaluate the model\n    r = tf_model.evaluate(validation_features,\
+          \ validation_labels)\n    print(\"Result:\",r)\n\n    # Save the model\n\
+          \    # tf_model.export( model_artifact.path, format='keras')\n    tf_model.save(\
+          \ \"model_artifact.keras\")\n\n    tf_model2 = tf.keras.models.load_model(\
+          \ \"model_artifact.keras\")\n    r = tf_model2.evaluate(validation_features,\
+          \ validation_labels)\n    print(\"Result:\",r)\n\n"
+        image: python:3.9
+    exec-validate-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - validate_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.2.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'tensorflow'\
+          \ 'pandas' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef validate_model(model_artifact: Input[Model], dataset_test: Input[Dataset]):\n\
+          \    import pandas as pd\n    import tensorflow as tf\n\n    # Load the\
+          \ model\n    tf_model = tf.keras.models.load_model(model_artifact.path)\n\
+          \n    with open(dataset_test.path, 'r') as test_file:\n        test_data\
+          \ = pd.read_csv(test_file)\n\n    # Preprocess the data\n    test_features\
+          \ = test_data.drop('target', axis=1)\n    test_labels = test_data['target']\n\
+          \n    # Evaluate the model\n    r = tf_model.evaluate(test_features, test_labels)\n\
+          \    print(r)\n\n"
+        image: python:3.9
 pipelineInfo:
   name: mlp-example-pipeline
 root:
@@ -204,6 +382,60 @@ root:
           name: comp-exctract-data
         taskInfo:
           name: exctract-data
+      split-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-split-data
+        dependentTasks:
+        - data-preparation
+        inputs:
+          artifacts:
+            dataset:
+              taskOutputArtifact:
+                outputArtifactKey: dataset_transformed
+                producerTask: data-preparation
+        taskInfo:
+          name: split-data
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - split-data
+        inputs:
+          artifacts:
+            dataset_train:
+              taskOutputArtifact:
+                outputArtifactKey: dataset_train
+                producerTask: split-data
+            dataset_validation:
+              taskOutputArtifact:
+                outputArtifactKey: dataset_validation
+                producerTask: split-data
+        taskInfo:
+          name: train-model
+      validate-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-validate-model
+        dependentTasks:
+        - split-data
+        - train-model
+        inputs:
+          artifacts:
+            dataset_test:
+              taskOutputArtifact:
+                outputArtifactKey: dataset_test
+                producerTask: split-data
+            model_artifact:
+              taskOutputArtifact:
+                outputArtifactKey: model_artifact
+                producerTask: train-model
+        taskInfo:
+          name: validate-model
   inputDefinitions:
     parameters:
       message:
