@@ -298,10 +298,9 @@ deploymentSpec:
           \ epochs=10, validation_data=(validation_features, validation_labels))\n\
           \n    # Evaluate the model\n    r = tf_model.evaluate(validation_features,\
           \ validation_labels)\n    print(\"Result:\",r)\n\n    # Save the model\n\
-          \    # tf_model.export( model_artifact.path, format='keras')\n    tf_model.save(\
-          \ \"model_artifact.keras\")\n\n    tf_model2 = tf.keras.models.load_model(\
-          \ \"model_artifact.keras\")\n    r = tf_model2.evaluate(validation_features,\
-          \ validation_labels)\n    print(\"Result:\",r)\n\n"
+          \    tf_model.save( \"model_artifact.keras\")\n\n    # Copy the model to\
+          \ the output path\n    import shutil\n    shutil.move(\"model_artifact.keras\"\
+          , model_artifact.path)\n\n"
         image: python:3.9
     exec-validate-model:
       container:
@@ -331,13 +330,14 @@ deploymentSpec:
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef validate_model(model_artifact: Input[Model], dataset_test: Input[Dataset]):\n\
-          \    import pandas as pd\n    import tensorflow as tf\n\n    # Load the\
-          \ model\n    tf_model = tf.keras.models.load_model(model_artifact.path)\n\
-          \n    with open(dataset_test.path, 'r') as test_file:\n        test_data\
-          \ = pd.read_csv(test_file)\n\n    # Preprocess the data\n    test_features\
-          \ = test_data.drop('target', axis=1)\n    test_labels = test_data['target']\n\
-          \n    # Evaluate the model\n    r = tf_model.evaluate(test_features, test_labels)\n\
-          \    print(r)\n\n"
+          \    import pandas as pd\n    import tensorflow as tf\n\n    # Copy the\
+          \ model to the current directory\n    import shutil\n    shutil.copy(model_artifact.path,\
+          \ \"model_artifact.keras\")\n\n    # Load the model\n    tf_model = tf.keras.models.load_model(\"\
+          model_artifact.keras\")\n\n    with open(dataset_test.path, 'r') as test_file:\n\
+          \        test_data = pd.read_csv(test_file)\n\n    # Preprocess the data\n\
+          \    test_features = test_data.drop('target', axis=1)\n    test_labels =\
+          \ test_data['target']\n\n    # Evaluate the model\n    r = tf_model.evaluate(test_features,\
+          \ test_labels)\n    print(r)\n\n"
         image: python:3.9
 pipelineInfo:
   name: mlp-example-pipeline

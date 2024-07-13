@@ -147,12 +147,13 @@ def train_model(
     print("Result:",r)
 
     # Save the model
-    tf_model.export( model_artifact.path, format='keras')
-    # tf_model.save( "model_artifact.keras")
+    tf_model.save( "model_artifact.keras")
 
-    tf_model2 = tf.keras.models.load_model(model_artifact.path)
-    r = tf_model2.evaluate(validation_features, validation_labels)
-    print("Result:",r)
+    # Copy the model to the output path
+    import shutil
+    shutil.move("model_artifact.keras", model_artifact.path)
+
+
 
         
 
@@ -162,8 +163,12 @@ def validate_model(model_artifact: Input[Model], dataset_test: Input[Dataset]):
     import pandas as pd
     import tensorflow as tf
 
+    # Copy the model to the current directory
+    import shutil
+    shutil.copy(model_artifact.path, "model_artifact.keras")
+
     # Load the model
-    tf_model = tf.keras.models.load_model(model_artifact.path)
+    tf_model = tf.keras.models.load_model("model_artifact.keras")
 
     with open(dataset_test.path, 'r') as test_file:
         test_data = pd.read_csv(test_file)
