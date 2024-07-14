@@ -106,6 +106,7 @@ def train_model(
     dataset_train: Input[Dataset],
     dataset_validation: Input[Dataset],
     model_artifact: Output[Model],
+    epochs: int = 10,
 ):
     import pandas as pd
     import tensorflow as tf
@@ -140,7 +141,7 @@ def train_model(
                     metrics=['accuracy'])
 
     # Train the model
-    tf_model.fit(train_features, train_labels, epochs=10, validation_data=(validation_features, validation_labels))
+    tf_model.fit(train_features, train_labels, epochs=epochs, validation_data=(validation_features, validation_labels))
 
     # Evaluate the model
     r = tf_model.evaluate(validation_features, validation_labels)
@@ -189,7 +190,7 @@ def ml_pipeline(message: str = 'message'):
     data_validation_task = data_validation(dataset=exctract_data_task.outputs['dataset'])
     data_preparation_task = data_preparation(dataset=exctract_data_task.outputs['dataset']).after(data_validation_task)
     split_data_task = split_data(dataset=data_preparation_task.outputs['dataset_transformed'])
-    train_model_task = train_model(dataset_train=split_data_task.outputs['dataset_train'], dataset_validation=split_data_task.outputs['dataset_validation'])
+    train_model_task = train_model(epochs=30, dataset_train=split_data_task.outputs['dataset_train'], dataset_validation=split_data_task.outputs['dataset_validation'])
     validate_model_task = validate_model(model_artifact=train_model_task.outputs['model_artifact'], dataset_test=split_data_task.outputs['dataset_test'])
 
 

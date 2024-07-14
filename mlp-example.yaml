@@ -77,6 +77,11 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
+      parameters:
+        epochs:
+          defaultValue: 10.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
     outputDefinitions:
       artifacts:
         model_artifact:
@@ -279,24 +284,24 @@ deploymentSpec:
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef train_model(\n    dataset_train: Input[Dataset],\n    dataset_validation:\
-          \ Input[Dataset],\n    model_artifact: Output[Model],\n):\n    import pandas\
-          \ as pd\n    import tensorflow as tf\n    from tensorflow import keras\n\
-          \    from tensorflow.keras import layers\n    def create_model():\n    \
-          \    tf_model = keras.Sequential([\n            layers.Dense(64, activation='relu',\
-          \ input_shape=(4,)),\n            layers.Dense(64, activation='relu'),\n\
-          \            layers.Dense(3, activation='softmax')\n        ])\n       \
-          \ return tf_model\n\n\n    with open(dataset_train.path, 'r') as train_file:\n\
-          \        train_data = pd.read_csv(train_file)\n    with open(dataset_validation.path,\
-          \ 'r') as validation_file:\n        validation_data = pd.read_csv(validation_file)\n\
-          \n    # Preprocess the data\n    train_features = train_data.drop('target',\
-          \ axis=1)\n    train_labels = train_data['target']\n    validation_features\
-          \ = validation_data.drop('target', axis=1)\n    validation_labels = validation_data['target']\n\
-          \n    # Create the model\n    tf_model = create_model()\n\n    # Compile\
-          \ the model\n    tf_model.compile(optimizer='adam',\n                  \
-          \  loss='sparse_categorical_crossentropy',\n                    metrics=['accuracy'])\n\
-          \n    # Train the model\n    tf_model.fit(train_features, train_labels,\
-          \ epochs=10, validation_data=(validation_features, validation_labels))\n\
-          \n    # Evaluate the model\n    r = tf_model.evaluate(validation_features,\
+          \ Input[Dataset],\n    model_artifact: Output[Model],\n    epochs: int =\
+          \ 10,\n):\n    import pandas as pd\n    import tensorflow as tf\n    from\
+          \ tensorflow import keras\n    from tensorflow.keras import layers\n   \
+          \ def create_model():\n        tf_model = keras.Sequential([\n         \
+          \   layers.Dense(64, activation='relu', input_shape=(4,)),\n           \
+          \ layers.Dense(64, activation='relu'),\n            layers.Dense(3, activation='softmax')\n\
+          \        ])\n        return tf_model\n\n\n    with open(dataset_train.path,\
+          \ 'r') as train_file:\n        train_data = pd.read_csv(train_file)\n  \
+          \  with open(dataset_validation.path, 'r') as validation_file:\n       \
+          \ validation_data = pd.read_csv(validation_file)\n\n    # Preprocess the\
+          \ data\n    train_features = train_data.drop('target', axis=1)\n    train_labels\
+          \ = train_data['target']\n    validation_features = validation_data.drop('target',\
+          \ axis=1)\n    validation_labels = validation_data['target']\n\n    # Create\
+          \ the model\n    tf_model = create_model()\n\n    # Compile the model\n\
+          \    tf_model.compile(optimizer='adam',\n                    loss='sparse_categorical_crossentropy',\n\
+          \                    metrics=['accuracy'])\n\n    # Train the model\n  \
+          \  tf_model.fit(train_features, train_labels, epochs=epochs, validation_data=(validation_features,\
+          \ validation_labels))\n\n    # Evaluate the model\n    r = tf_model.evaluate(validation_features,\
           \ validation_labels)\n    print(\"Result:\",r)\n\n    # Save the model\n\
           \    tf_model.save( \"model_artifact.keras\")\n\n    # Copy the model to\
           \ the output path\n    import shutil\n    shutil.move(\"model_artifact.keras\"\
@@ -414,6 +419,10 @@ root:
               taskOutputArtifact:
                 outputArtifactKey: dataset_validation
                 producerTask: split-data
+          parameters:
+            epochs:
+              runtimeValue:
+                constant: 30.0
         taskInfo:
           name: train-model
       validate-model:
